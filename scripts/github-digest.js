@@ -178,7 +178,22 @@ async function callLLM(systemPrompt) {
 async function main() {
   const args = parseArgs();
   const rawInput = await readStdin();
-  const data = JSON.parse(rawInput);
+
+  if (!rawInput || !rawInput.trim()) {
+    console.error('[github-digest] Error: 输入数据为空，可能原始数据文件不存在或拉取失败');
+    console.log('# GitHub 每日盲盒\n\n今天数据暂未就绪，请稍后再试。');
+    return;
+  }
+
+  let data;
+  try {
+    data = JSON.parse(rawInput);
+  } catch (err) {
+    console.error(`[github-digest] Error: 输入数据不是有效的 JSON (${err.message})`);
+    console.error('[github-digest] 收到的内容前200字符:', rawInput.substring(0, 200));
+    console.log('# GitHub 每日盲盒\n\n今天数据格式异常，请检查 trending-feed.json 是否完整。');
+    return;
+  }
 
   if (data.status === 'error') {
     console.error('Trending fetch failed:', data.message);

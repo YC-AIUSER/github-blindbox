@@ -18,7 +18,7 @@ jobs:
         run: cd scripts && npm install
 
       - name: 拉取最新 Trending 数据
-        run: curl -sL -o trending-feed.json https://raw.githubusercontent.com/zhangxq0606-ctrl/github-blindbox/main/trending-feed.json
+        run: curl -sfL -o trending-feed.json https://raw.githubusercontent.com/zhangxq0606-ctrl/github-blindbox/master/trending-feed.json
 
       - name: 恢复历史去重缓存
         id: cache-restore

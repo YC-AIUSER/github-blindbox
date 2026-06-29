@@ -61,6 +61,31 @@ function buildPrompt(data, excludeList) {
     year: 'numeric', month: 'long', day: 'numeric', weekday: 'long'
   });
 
+  // Roughly categorize recent excludes for the "yesterday diversity" hint
+  const yesterdayHint = (() => {
+    const recent = excludeList.slice(-12);
+    if (recent.length < 3) return '';
+    let toolCount = 0, aiCount = 0, creativeCount = 0, otherCount = 0;
+    for (const name of recent) {
+      const lower = name.toLowerCase();
+      if (/(ai|llm|gpt|chat|voice|speech|tts|stable.diffusion|transl|agent|mcp|skill)/.test(lower)) {
+        aiCount++;
+      } else if (/(game|art|animat|fun|play|pixel|terminal|novel|font|theme|3b1b|manim|godot)/.test(lower)) {
+        creativeCount++;
+      } else if (/(sync|cli|export|download|scraper|exporter|pars|convert|editor|link|manager|monitor|file|note|blog|email|form|cv|resume|pdf|pocketbase)/.test(lower)) {
+        toolCount++;
+      } else {
+        otherCount++;
+      }
+    }
+    const parts = [];
+    if (toolCount) parts.push(`效率工具 ${toolCount} 个`);
+    if (aiCount) parts.push(`AI 产品 ${aiCount} 个`);
+    if (creativeCount) parts.push(`创意好玩 ${creativeCount} 个`);
+    if (otherCount) parts.push(`其他 ${otherCount} 个`);
+    return `\n📅 昨天推送品类分布：${parts.join('、')}。今天请尽量调换口味，不要和昨天高度重复。\n`;
+  })();
+
   // Normalize URLs: always use https://github.com/owner/repo regardless of
   // what the API returned (some APIs return github.com/sponsors/owner etc.)
   repos = repos.map(r => ({ ...r, url: `https://github.com/${r.fullName}` }));
@@ -87,15 +112,28 @@ function buildPrompt(data, excludeList) {
   return `今天的日期是 ${today}。以下是从 GitHub Trending 今日列表中抓取到的热门项目。
 ${excludedCount > 0 ? `\n注意：今天原始数据共 ${beforeCount} 个项目，其中 ${excludedCount} 个已经在前几天推送过，已自动排除，剩余 ${afterCount} 个待筛选。` : ''}
 
-你的任务是从这些项目中筛选出**真正值得关注**的，然后按以下结构生成一封邮件正文。
+你的任务是从这些项目中筛选出**真正值得关注**的，然后生成一封邮件正文。
 
 ## 阅读者画像（请结合此画像筛选项目）
 
-- 独立开发者，vibecoding 实践者
+- 独立开发者，vibecoding 实践者，Windows 用户
+- Claude Code + Codex 主力工具
 - 有产品思维和运维思维
-- 追求实用、有创意的产品
-- 不需要底层技术、算法、框架等纯开发内容
 - 喜欢「能直接用的」和「有意思的」
+
+## 排除项（除非对 vibecoding 有直接帮助）
+
+- 翻墙/代理工具
+- 纯底层技术、算法库、编程语言、Web 框架
+
+## 加权信号（同类项目内部排序用）
+
+- ⭐ 总星数高 → 经过了市场验证（加分）
+- 🔥 今日增量大 → 当前热度高（加分）
+- ⏳ 连续多日出现在 trending 上 → 持续火爆，加分更多
+- ✨ 新奇感 → "这个没想到"（额外加分）
+
+${yesterdayHint}
 
 ## 邮件结构
 
@@ -104,32 +142,27 @@ ${excludedCount > 0 ? `\n注意：今天原始数据共 ${beforeCount} 个项目
 从原始数据中挑选 **2 个总星数高、久经考验的老牌项目**，但要注意：**不要选底层技术类**（如算法库、Web框架、编程语言等）。
 
 将选出的 2 个项目归类到以下三类中展示（每类最多 1 个，三类不一定都出现）：
-- 🛠 工具类：能解决具体问题的成熟工具
-- 🤖 AI 应用类：AI 相关且经过市场验证的项目
+- 🛠 效率工具类：能解决具体问题的成熟工具
+- 🤖 AI 产品类：AI 相关且经过市场验证的项目
 - 🎨 创意/好玩类：有趣有新意且广受欢迎的项目
 
 每个项目用 2-3 句话介绍：做什么、为什么值得了解、当前星数。
 
 ### 第二部分：🔥 今日新星
 
-筛选今日值得关注的新星项目。参考标准：
-- 综合判断星数和今日增量
-- 50 星以下大概率是噪音，可以跳过
-- 同一个开发者/组织的多个项目，只选最突出的那个
-- **结合阅读者画像**选择——优先选实用工具、AI 应用、有创意好玩的，跳过底层技术/算法/框架
+筛选今日值得关注的项目。按以下品类组织展示，类型尽量不重复，但不强求凑数：
 
-将筛选出的项目按以下**顺序**展示：
-
-#### 🎨 创意/好玩类（排最前面，2-3 个）
+#### 🎨 创意/好玩类（最有意思的排最前面）
 不是为了有用，而是有趣、好看、有新意——游戏、艺术、新奇实验等。每段写清楚「有意思在哪」。
 
-#### 🛠 工具类（2-3 个）
-能直接用的东西——文件处理、自动化、效率提升、开发工具等。每段写清楚「解决了什么问题」。
+#### 🛠 效率工具类
+开箱即用解决具体问题——文件处理、自动化、效率提升等。每段写清楚「解决了什么问题」。
 
-#### 🤖 AI 应用类（2-3 个）
-跟大模型相关的——AI 助手、绘图、语音、翻译等。每段写清楚「用 AI 做了什么、普通人怎么用」。
+#### 🤖 AI 产品类
+以 AI 为核心、上手能玩的产品——AI 助手、绘图、语音、翻译等。每段写清楚「用 AI 做了什么、普通人怎么用」。
 
-**每个类别必须选出 2-3 个项目，不要跳过任何类别。**
+#### 📊 数据/金融类
+出彩的才放进来，不硬塞。
 
 ## 输出要求
 
